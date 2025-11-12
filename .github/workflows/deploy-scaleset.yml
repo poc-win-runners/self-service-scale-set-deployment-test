@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       config_file:
-        description: 'Configuration file name (e.g., team-a-runners.json or 2025-11-12-120000-team-a.json)'
+        description: 'Configuration file name (e.g., 12-11_test-scale-set.json or 2025-11-12-120000-snapshot-team-a.json)'
         required: true
         type: string
-        default: '12-11-test-scale-set.json'
+        default: '12-11_test-scale-set.json'
       operation:
         description: 'Operation to perform'
         required: true
