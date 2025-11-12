@@ -131,7 +131,6 @@ jobs:
           helm upgrade --install "${{ env.SCALESET_NAME }}" \
             -f values-scaleset.yaml \
             --namespace "${{ env.ARC_RUN_NS }}" \
-            $CHART_VERSION_FLAG \
             oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 
       - name: Uninstall Scale Set
