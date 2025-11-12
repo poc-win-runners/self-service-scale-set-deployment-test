@@ -1,0 +1,72 @@
+[
+  {
+    "ParameterKey": "TemplateName",
+    "ParameterValue": "windows-standard",
+    "Description": "Template identifier - do not modify"
+  },
+  {
+    "ParameterKey": "TemplatePath",
+    "ParameterValue": "templates/windows-standard/config.scaleset.yaml",
+    "Description": "Path to the base template file"
+  },
+  {
+    "ParameterKey": "ScaleSetName",
+    "ParameterValue": "",
+    "Description": "Unique name for this scale set deployment"
+  },
+  {
+    "ParameterKey": "RunnersNamespace",
+    "ParameterValue": "",
+    "Description": "Namespace suffix (will become arc-{value})"
+  },
+  {
+    "ParameterKey": "RunnerImage",
+    "ParameterValue": "ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0",
+    "Description": "Container image for the runner"
+  },
+  {
+    "ParameterKey": "RunnerGroup",
+    "ParameterValue": "default",
+    "Description": "GitHub Actions runner group"
+  },
+  {
+    "ParameterKey": "RunnerLabels",
+    "ParameterValue": "",
+    "Description": "Comma-separated labels for runners (e.g., windows,team-a)"
+  },
+  {
+    "ParameterKey": "MinRunners",
+    "ParameterValue": "0",
+    "Description": "Minimum number of runners"
+  },
+  {
+    "ParameterKey": "MaxRunners",
+    "ParameterValue": "10",
+    "Description": "Maximum number of runners"
+  },
+  {
+    "ParameterKey": "AWSRegion",
+    "ParameterValue": "",
+    "Description": "AWS region where the EKS cluster is located"
+  },
+  {
+    "ParameterKey": "ClusterName",
+    "ParameterValue": "",
+    "Description": "EKS cluster name"
+  },
+  {
+    "ParameterKey": "ARCSystemsNamespace",
+    "ParameterValue": "arc-systems",
+    "Description": "Namespace for ARC controller"
+  },
+  {
+    "ParameterKey": "GitHubSecretName",
+    "ParameterValue": "gha-runner-secret",
+    "Description": "Name of the Kubernetes secret containing GitHub App credentials"
+  },
+  {
+    "ParameterKey": "GitHubConfigURL",
+    "ParameterValue": "",
+    "Description": "GitHub organization or repository URL (e.g., https://github.com/your-org)"
+  }
+]

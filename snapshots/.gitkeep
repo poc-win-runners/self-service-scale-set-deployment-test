@@ -1,0 +1,14 @@
+# Deployment Snapshots
+
+This directory contains historical snapshots of deployments.
+
+Each snapshot is automatically created when a deployment or upgrade is performed and includes:
+
+- All configuration parameters used
+- Timestamp of deployment
+- ARC controller version used
+- Operation performed (deploy/upgrade)
+
+Snapshots are named: `YYYY-MM-DD-HHMMSS-snapshot-{scaleset-name}.json`
+
+You can redeploy from a snapshot by copying it to the `deployments/` folder or referencing it directly in the workflow.

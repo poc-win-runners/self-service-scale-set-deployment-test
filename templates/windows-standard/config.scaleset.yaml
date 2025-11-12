@@ -1,0 +1,50 @@
+controllerServiceAccount:
+  name: arc-gha-rs-controller
+  namespace: arc-systems
+
+minRunners: 0
+maxRunners: 10
+
+runnerGroup: default
+
+template:
+  spec:
+    nodeSelector:
+      kubernetes.io/os: windows
+    containers:
+      - name: runner
+        image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
+        command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
+    tolerations:
+      - key: kubernetes.io/os
+        operator: Equal
+        value: windows
+        effect: NoSchedule
+      - key: os
+        operator: Equal
+        value: windows
+        effect: NoSchedule
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/os
+                  operator: In
+                  values:
+                    - windows
+
+listenerTemplate:
+  spec:
+    containers:
+    - name: listener
+      resources:
+        limits:
+          cpu: "1"
+          memory: 1Gi
+        requests:
+          cpu: "0.5"
+          memory: 512Mi
+
+githubConfigUrl: https://github.com/YOUR_ORG/YOUR_REPO
+githubConfigSecret: gha-runner-secret

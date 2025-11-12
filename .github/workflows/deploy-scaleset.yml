@@ -1,0 +1,157 @@
+name: Deploy ARC Scale Set
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_file:
+        description: 'Configuration file name (e.g., team-a-runners.json or 2025-11-12-120000-team-a.json)'
+        required: true
+        type: string
+        default: '12-11-test-scale-set.json'
+      operation:
+        description: 'Operation to perform'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - upgrade
+          - uninstall
+        default: 'deploy'
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set secrets as environment variables
+        run: |
+          echo "AWS_ROLE_NAME=${{ secrets.AWS_ROLE_NAME }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV
+          echo "GH_APP_ID=${{ secrets.GH_APP_ID }}" >> $GITHUB_ENV
+          echo "GH_INSTALLATION_ID=${{ secrets.GH_INSTALLATION_ID }}" >> $GITHUB_ENV
+          echo "GH_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+          echo "${{ secrets.GH_PRIVATE_KEY }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Locate configuration file
+        run: |
+          CONFIG_INPUT="${{ inputs.config_file }}"
+          
+          # Check if full path provided
+          if [[ -f "$CONFIG_INPUT" ]]; then
+            CONFIG_PATH="$CONFIG_INPUT"
+          # Check in deployments folder
+          elif [[ -f "deployments/$CONFIG_INPUT" ]]; then
+            CONFIG_PATH="deployments/$CONFIG_INPUT"
+          # Check in snapshots folder
+          elif [[ -f "snapshots/$CONFIG_INPUT" ]]; then
+            CONFIG_PATH="snapshots/$CONFIG_INPUT"
+          else
+            echo "❌ Configuration file not found: $CONFIG_INPUT"
+            echo ""
+            echo "Searched in:"
+            echo "  - $CONFIG_INPUT (as full path)"
+            echo "  - deployments/$CONFIG_INPUT"
+            echo "  - snapshots/$CONFIG_INPUT"
+            exit 1
+          fi
+          
+          echo "✅ Configuration file found: $CONFIG_PATH"
+          echo "CONFIG_PATH=$CONFIG_PATH" >> $GITHUB_ENV
+
+      - name: Load configuration
+        run: ./scripts/load-config.sh "${{ env.CONFIG_PATH }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ format('arn:aws:iam::{0}:role/{1}', env.AWS_ACCOUNT_ID, env.AWS_ROLE_NAME) }}
+
+      - name: Install kubectl and helm
+        run: |
+          curl -sSLo kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          
+          curl -sSL https://get.helm.sh/helm-v3.15.2-linux-amd64.tar.gz | tar zx
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "${{ env.CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+
+      - name: Setup namespaces
+        run: |
+          kubectl create ns "${{ env.ARC_SYSTEMS_NS }}" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create ns "${{ env.ARC_RUN_NS }}" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Setup ARC Controller
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: ./scripts/setup-arc-controller.sh
+
+      - name: Create GitHub App secret
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: |
+          echo "${{ env.GH_PRIVATE_KEY }}" > github_app_private_key.pem
+          kubectl create secret generic "${{ env.GITHUB_SECRET_NAME }}" \
+            --namespace="${{ env.ARC_RUN_NS }}" \
+            --from-literal=github_app_id="${{ env.GH_APP_ID }}" \
+            --from-literal=github_app_installation_id="${{ env.GH_INSTALLATION_ID }}" \
+            --from-file=github_app_private_key=./github_app_private_key.pem \
+            --dry-run=client -o yaml | kubectl apply -f -
+          rm github_app_private_key.pem
+
+      - name: Configure RBAC
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: |
+          kubectl create rolebinding arc-rs-controller-admin \
+            -n "${{ env.ARC_RUN_NS }}" \
+            --clusterrole=admin \
+            --serviceaccount="${{ env.ARC_SYSTEMS_NS }}:${{ env.CONTROLLER_SERVICE_ACCOUNT }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Prepare values file
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: ./scripts/prepare-values.sh
+
+      - name: Deploy Scale Set
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: |
+          CHART_VERSION_FLAG=""
+          if [[ -n "${{ env.CONTROLLER_VERSION }}" ]]; then
+            CHART_VERSION_FLAG="--version ${{ env.CONTROLLER_VERSION }}"
+          fi
+          
+          helm upgrade --install "${{ env.SCALESET_NAME }}" \
+            -f values-scaleset.yaml \
+            --namespace "${{ env.ARC_RUN_NS }}" \
+            $CHART_VERSION_FLAG \
+            oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+
+      - name: Uninstall Scale Set
+        if: inputs.operation == 'uninstall'
+        run: |
+          helm uninstall "${{ env.SCALESET_NAME }}" --namespace "${{ env.ARC_RUN_NS }}" || echo "Scale set not found"
+
+      - name: Save deployment snapshot
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: ./scripts/save-deployment.sh "${{ env.CONFIG_PATH }}" "${{ inputs.operation }}"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Operation: ${{ inputs.operation }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Scale Set: ${{ env.SCALESET_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Namespace: ${{ env.ARC_RUN_NS }}" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub Config: ${{ env.GITHUB_CONFIG_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Configuration Used: ${{ env.CONFIG_PATH }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ inputs.operation }}" != "uninstall" ]]; then
+            echo "- Deployment Snapshot: ${{ env.DEPLOYMENT_FILE }}" >> $GITHUB_STEP_SUMMARY
+          fi
