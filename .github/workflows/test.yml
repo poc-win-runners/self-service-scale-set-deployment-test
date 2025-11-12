@@ -1,0 +1,12 @@
+name: Win-Runner Self-Hosted on EKS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: my-scale-set
+
+    steps:
+    - name: Output
+      run: $PSVersionTable

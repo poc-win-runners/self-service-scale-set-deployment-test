@@ -29,7 +29,7 @@ RUNNER_LABELS=$(jq -r '.[] | select(.ParameterKey=="RunnerLabels") | .ParameterV
 MIN_RUNNERS=$(jq -r '.[] | select(.ParameterKey=="MinRunners") | .ParameterValue' "$CONFIG_FILE")
 MAX_RUNNERS=$(jq -r '.[] | select(.ParameterKey=="MaxRunners") | .ParameterValue' "$CONFIG_FILE")
 
-ARC_RUN_NS="arc-${RUNNERS_NAMESPACE}"
+ARC_RUN_NS="${RUNNERS_NAMESPACE}"
 
 # Note: Sensitive values (AWS_ROLE_NAME, AWS_ACCOUNT_ID, GH_APP_ID, GH_INSTALLATION_ID, GH_PRIVATE_KEY)
 # are expected to be set by the workflow from GitHub secrets, not from the config file
