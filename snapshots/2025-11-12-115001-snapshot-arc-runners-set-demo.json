@@ -1,0 +1,76 @@
+[
+  {
+    "ParameterKey": "TemplateName",
+    "ParameterValue": "windows-standard",
+    "Description": "Template identifier - do not modify"
+  },
+  {
+    "ParameterKey": "TemplatePath",
+    "ParameterValue": "templates/windows-standard/config.scaleset.yaml",
+    "Description": "Path to the base template file"
+  },
+  {
+    "ParameterKey": "ScaleSetName",
+    "ParameterValue": "arc-runners-set-demo"
+  },
+  {
+    "ParameterKey": "RunnersNamespace",
+    "ParameterValue": "arc-runners-demo"
+  },
+  {
+    "ParameterKey": "RunnerImage",
+    "ParameterValue": "ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0"
+  },
+  {
+    "ParameterKey": "RunnerGroup",
+    "ParameterValue": "default"
+  },
+  {
+    "ParameterKey": "RunnerLabels",
+    "ParameterValue": ""
+  },
+  {
+    "ParameterKey": "MinRunners",
+    "ParameterValue": "1"
+  },
+  {
+    "ParameterKey": "MaxRunners",
+    "ParameterValue": "5"
+  },
+  {
+    "ParameterKey": "AWSRegion",
+    "ParameterValue": "eu-central-1"
+  },
+  {
+    "ParameterKey": "ClusterName",
+    "ParameterValue": "self-service-eks-cluster"
+  },
+  {
+    "ParameterKey": "ARCSystemsNamespace",
+    "ParameterValue": "arc-systems"
+  },
+  {
+    "ParameterKey": "GitHubSecretName",
+    "ParameterValue": "gha-runner-secret"
+  },
+  {
+    "ParameterKey": "GitHubConfigURL",
+    "ParameterValue": "https://github.com/poc-win-runners"
+  },
+  {
+    "ParameterKey": "DeploymentTimestamp",
+    "ParameterValue": "2025-11-12-115001"
+  },
+  {
+    "ParameterKey": "ControllerServiceAccount",
+    "ParameterValue": "arc-gha-rs-controller"
+  },
+  {
+    "ParameterKey": "ControllerVersionUsed",
+    "ParameterValue": "0.13.0"
+  },
+  {
+    "ParameterKey": "Operation",
+    "ParameterValue": "deploy"
+  }
+]
