@@ -119,68 +119,67 @@ jobs:
             --serviceaccount="${{ env.ARC_SYSTEMS_NS }}:${{ env.CONTROLLER_SERVICE_ACCOUNT }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      # Verify rolebinding was created
       - name: Verify RBAC configuration
         run: |
           kubectl get rolebinding arc-rs-controller-admin -n "${{ env.ARC_RUN_NS }}"
 
-      # Deploy Windows Runner Scale Set
-      - name: Create Windows Runner Scale Set values file
+      # # Deploy Windows Runner Scale Set
+      # - name: Create Windows Runner Scale Set values file
+      #   run: |
+      #     cat > values-windows-runners.yaml <<EOF
+      #     controllerServiceAccount:
+      #       name: arc-gha-rs-controller
+      #       namespace: arc-systems
+
+      #     template:
+      #       spec:
+      #         nodeSelector:
+      #           kubernetes.io/os: windows
+      #         containers:
+      #           - name: runner
+      #             image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
+      #             command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
+      #         tolerations:
+      #           - key: kubernetes.io/os
+      #             operator: Equal
+      #             value: windows
+      #             effect: NoSchedule
+      #           - key: os
+      #             operator: Equal
+      #             value: windows
+      #             effect: NoSchedule
+      #         affinity:
+      #           nodeAffinity:
+      #             requiredDuringSchedulingIgnoredDuringExecution:
+      #               nodeSelectorTerms:
+      #                 - matchExpressions:
+      #                     - key: kubernetes.io/os
+      #                       operator: In
+      #                       values:
+      #                         - windows
+
+      #     githubConfigUrl: https://github.com/poc-win-runners
+      #     githubConfigSecret: gha-runner-secret
+      #     minRunners: 1
+      #     EOF
+
+
+      - name: Prepare values file
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: ./scripts/prepare-values.sh
+
+      - name: Verify values file
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
         run: |
-          cat > values-windows-runners.yaml <<EOF
-          controllerServiceAccount:
-            name: arc-gha-rs-controller
-            namespace: arc-systems
-
-          template:
-            spec:
-              nodeSelector:
-                kubernetes.io/os: windows
-              containers:
-                - name: runner
-                  image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
-                  command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
-              tolerations:
-                - key: kubernetes.io/os
-                  operator: Equal
-                  value: windows
-                  effect: NoSchedule
-                - key: os
-                  operator: Equal
-                  value: windows
-                  effect: NoSchedule
-              affinity:
-                nodeAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    nodeSelectorTerms:
-                      - matchExpressions:
-                          - key: kubernetes.io/os
-                            operator: In
-                            values:
-                              - windows
-
-          githubConfigUrl: https://github.com/poc-win-runners
-          githubConfigSecret: gha-runner-secret
-          minRunners: 1
-          EOF
+          echo "Generated values file:"
+          cat values-scaleset.yaml
 
       - name: Install Windows Runner Scale Set
         run: |
           helm upgrade --install ${{ env.SCALESET_NAME }} \
-            -f values-windows-runners.yaml \
+            -f values-scaleset.yaml \
             --namespace ${{ env.ARC_RUN_NS }} \
             oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
-
-
-      # - name: Prepare values file
-      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
-      #   run: ./scripts/prepare-values.sh
-
-      # - name: Verify values file
-      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
-      #   run: |
-      #     echo "Generated values file:"
-      #     cat values-scaleset.yaml
 
       # - name: Deploy Scale Set
       #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
