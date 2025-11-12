@@ -1,0 +1,139 @@
+name: Deploy ARC Controller to EKS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  CONTROLLER_RELEASE: arc
+  SCALESET_RELEASE: arc-runner-set-test
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (optional if values files are in repo)
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: 'eu-central-1'
+          role-to-assume: ${{ vars.ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.AWS_ROLE_NAME) }}
+
+      - name: Install kubectl, helm, and awscli if needed
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y unzip
+          # kubectl
+          curl -sSLo kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+          # helm
+          curl -sSL https://get.helm.sh/helm-v3.15.2-linux-amd64.tar.gz | tar zx
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+
+      - name: Update kubeconfig
+        run: |
+          AWS_REGION="eu-central-1"
+          CLUSTER_NAME="self-service-eks-cluster"
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Create namespaces (idempotent)
+        run: |
+          ARC_SYS_NS="arc-systems"
+          ARC_RUN_NS="arc-runners-test"
+          kubectl create ns "$ARC_SYS_NS" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create ns "$ARC_RUN_NS" --dry-run=client -o yaml | kubectl apply -f -
+
+      # - name: Install/Upgrade ARC Controller
+      #   run: |
+      #     ARC_SYS_NS="arc-systems"
+      #     helm install "$CONTROLLER_RELEASE" \
+      #       --namespace "$ARC_SYS_NS" \
+      #       --create-namespace \
+      #       oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+
+      # Create GitHub App secret using the format from ARC installation instructions
+      - name: Create GitHub App secret
+        env:
+          GITHUB_APP_ID: ${{ secrets.GH_APP_ID }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.GH_INSTALLATION_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.GH_PRIVATE_KEY }} # PEM text
+        run: |
+          echo "$GITHUB_APP_PRIVATE_KEY" > github_app_private_key.pem
+          kubectl create secret generic gha-runner-secret \
+            --namespace="$ARC_RUN_NS" \
+            --from-literal=github_app_id="$GITHUB_APP_ID" \
+            --from-literal=github_app_installation_id="$GITHUB_APP_INSTALLATION_ID" \
+            --from-file=github_app_private_key=./github_app_private_key.pem \
+            --dry-run=client -o yaml | kubectl apply -f -
+          rm github_app_private_key.pem
+
+      # Configure RBAC for ARC Scale Sets
+      - name: Configure RBAC for ARC Scale Sets
+        run: |
+          kubectl create rolebinding arc-rs-controller-admin \
+            -n "$ARC_RUN_NS" \
+            --clusterrole=admin \
+            --serviceaccount arc-systems:arc-gha-rs-controller \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # Verify rolebinding was created
+      - name: Verify RBAC configuration
+        run: |
+          kubectl get rolebinding arc-rs-controller-admin -n "$ARC_RUN_NS"
+
+      # Deploy Windows Runner Scale Set
+      - name: Create Windows Runner Scale Set values file
+        run: |
+          cat > values-windows-runners.yaml <<EOF
+          controllerServiceAccount:
+            name: arc-gha-rs-controller
+            namespace: arc-systems
+
+          template:
+            spec:
+              nodeSelector:
+                kubernetes.io/os: windows
+              containers:
+                - name: runner
+                  image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
+                  command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
+              tolerations:
+                - key: kubernetes.io/os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+                - key: os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: kubernetes.io/os
+                            operator: In
+                            values:
+                              - windows
+
+          githubConfigUrl: https://github.com/poc-win-runners
+          githubConfigSecret: gha-runner-secret
+          EOF
+
+      - name: Install Windows Runner Scale Set
+        run: |
+          helm install "$SCALESET_RELEASE" \
+            -f values-windows-runners.yaml \
+            --namespace "$ARC_RUN_NS" \
+            oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+
+      # Verify installation
+      - name: Verify Runner Scale Set installation
+        run: |
+          kubectl get pods -n "$ARC_RUN_NS"
+          helm list -n "$ARC_RUN_NS"
