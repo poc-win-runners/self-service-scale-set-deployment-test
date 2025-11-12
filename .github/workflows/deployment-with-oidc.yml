@@ -128,7 +128,7 @@ jobs:
 
       - name: Install Windows Runner Scale Set
         run: |
-          helm install "$SCALESET_RELEASE" \
+          helm upgrade --install "$SCALESET_RELEASE" \
             -f values-windows-runners.yaml \
             --namespace "$ARC_RUN_NS" \
             oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
