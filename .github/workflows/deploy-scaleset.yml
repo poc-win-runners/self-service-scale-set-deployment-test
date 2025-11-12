@@ -167,12 +167,6 @@ jobs:
         if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
         run: ./scripts/prepare-values.sh
 
-      - name: Verify values file
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
-        run: |
-          echo "Generated values file:"
-          cat values-scaleset.yaml
-
       - name: Deploy Scale Set
         if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
         run: |
