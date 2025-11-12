@@ -74,13 +74,16 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ format('arn:aws:iam::{0}:role/{1}', env.AWS_ACCOUNT_ID, env.AWS_ROLE_NAME) }}
 
-      - name: Install kubectl and helm
+      - name: Install kubectl, helm, and yq
         run: |
           curl -sSLo kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/
           
           curl -sSL https://get.helm.sh/helm-v3.15.2-linux-amd64.tar.gz | tar zx
           sudo mv linux-amd64/helm /usr/local/bin/helm
+          
+          curl -sSL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o yq
+          chmod +x yq && sudo mv yq /usr/local/bin/yq
 
       - name: Update kubeconfig
         run: |
@@ -120,6 +123,12 @@ jobs:
         if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
         run: ./scripts/prepare-values.sh
 
+      - name: Verify values file
+        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+        run: |
+          echo "Generated values file:"
+          cat values-scaleset.yaml
+
       - name: Deploy Scale Set
         if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
         run: |
@@ -131,6 +140,7 @@ jobs:
           helm upgrade --install "${{ env.SCALESET_NAME }}" \
             -f values-scaleset.yaml \
             --namespace "${{ env.ARC_RUN_NS }}" \
+            $CHART_VERSION_FLAG \
             oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 
       - name: Uninstall Scale Set
