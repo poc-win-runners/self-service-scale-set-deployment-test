@@ -27,7 +27,7 @@
   },
   {
     "ParameterKey": "RunnerLabels",
-    "ParameterValue": "windows,team-a"
+    "ParameterValue": ""
   },
   {
     "ParameterKey": "MinRunners",
