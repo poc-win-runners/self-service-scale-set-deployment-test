@@ -11,11 +11,11 @@
   },
   {
     "ParameterKey": "ScaleSetName",
-    "ParameterValue": "arc-runners-set-demo"
+    "ParameterValue": "arc-runners-set-demo2"
   },
   {
     "ParameterKey": "RunnersNamespace",
-    "ParameterValue": "arc-runners-demo"
+    "ParameterValue": "arc-runners-demo2"
   },
   {
     "ParameterKey": "RunnerImage",
