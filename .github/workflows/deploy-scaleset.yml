@@ -139,9 +139,9 @@ jobs:
         run: |
           helm uninstall "${{ env.SCALESET_NAME }}" --namespace "${{ env.ARC_RUN_NS }}" || echo "Scale set not found"
 
-      - name: Save deployment snapshot
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
-        run: ./scripts/save-deployment.sh "${{ env.CONFIG_PATH }}" "${{ inputs.operation }}"
+      # - name: Save deployment snapshot
+      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      #   run: ./scripts/save-deployment.sh "${{ env.CONFIG_PATH }}" "${{ inputs.operation }}"
 
       - name: Deployment Summary
         if: always()
