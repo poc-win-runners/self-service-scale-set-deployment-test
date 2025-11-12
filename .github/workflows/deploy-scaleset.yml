@@ -119,29 +119,82 @@ jobs:
             --serviceaccount="${{ env.ARC_SYSTEMS_NS }}:${{ env.CONTROLLER_SERVICE_ACCOUNT }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Prepare values file
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
-        run: ./scripts/prepare-values.sh
-
-      - name: Verify values file
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      # Verify rolebinding was created
+      - name: Verify RBAC configuration
         run: |
-          echo "Generated values file:"
-          cat values-scaleset.yaml
+          kubectl get rolebinding arc-rs-controller-admin -n "${{ env.ARC_RUN_NS }}"
 
-      - name: Deploy Scale Set
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      # Deploy Windows Runner Scale Set
+      - name: Create Windows Runner Scale Set values file
         run: |
-          CHART_VERSION_FLAG=""
-          if [[ -n "${{ env.CONTROLLER_VERSION }}" ]]; then
-            CHART_VERSION_FLAG="--version ${{ env.CONTROLLER_VERSION }}"
-          fi
-          
-          helm upgrade --install "${{ env.SCALESET_NAME }}" \
-            -f values-scaleset.yaml \
-            --namespace "${{ env.ARC_RUN_NS }}" \
-            $CHART_VERSION_FLAG \
+          cat > values-windows-runners.yaml <<EOF
+          controllerServiceAccount:
+            name: arc-gha-rs-controller
+            namespace: arc-systems
+
+          template:
+            spec:
+              nodeSelector:
+                kubernetes.io/os: windows
+              containers:
+                - name: runner
+                  image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
+                  command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
+              tolerations:
+                - key: kubernetes.io/os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+                - key: os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: kubernetes.io/os
+                            operator: In
+                            values:
+                              - windows
+
+          githubConfigUrl: https://github.com/poc-win-runners
+          githubConfigSecret: gha-runner-secret
+          minRunners: 1
+          EOF
+
+      - name: Install Windows Runner Scale Set
+        run: |
+          helm upgrade --install "$SCALESET_RELEASE" \
+            -f values-windows-runners.yaml \
+            --namespace "$ARC_RUN_NS" \
             oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+
+
+      # - name: Prepare values file
+      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      #   run: ./scripts/prepare-values.sh
+
+      # - name: Verify values file
+      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      #   run: |
+      #     echo "Generated values file:"
+      #     cat values-scaleset.yaml
+
+      # - name: Deploy Scale Set
+      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      #   run: |
+      #     CHART_VERSION_FLAG=""
+      #     if [[ -n "${{ env.CONTROLLER_VERSION }}" ]]; then
+      #       CHART_VERSION_FLAG="--version ${{ env.CONTROLLER_VERSION }}"
+      #     fi
+          
+      #     helm upgrade --install "${{ env.SCALESET_NAME }}" \
+      #       -f values-scaleset.yaml \
+      #       --namespace "${{ env.ARC_RUN_NS }}" \
+      #       $CHART_VERSION_FLAG \
+      #       oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
 
       - name: Uninstall Scale Set
         if: inputs.operation == 'uninstall'
