@@ -123,6 +123,7 @@ jobs:
 
           githubConfigUrl: https://github.com/poc-win-runners
           githubConfigSecret: gha-runner-secret
+          minRunners: 1
           EOF
 
       - name: Install Windows Runner Scale Set
