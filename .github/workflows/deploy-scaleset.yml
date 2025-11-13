@@ -166,7 +166,7 @@ jobs:
       # Deploy Windows Runner Scale Set
       - name: Create Windows Runner Scale Set values file
         run: |
-          cat > values-windows-runners.yaml <<EOF
+          cat > values-scaleset.yaml <<EOF
           controllerServiceAccount:
             name: arc-gha-rs-controller
             namespace: arc-systems
