@@ -123,45 +123,85 @@ jobs:
         run: |
           kubectl get rolebinding arc-rs-controller-admin -n "${{ env.ARC_RUN_NS }}"
 
-      - name: Prepare values file
-        if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      # - name: Prepare values file
+      #   if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
+      #   run: |
+      #     if [[ -z "${{ env.TEMPLATE_PATH }}" ]]; then
+      #       echo "❌ ERROR: TEMPLATE_PATH environment variable is required"
+      #       exit 1
+      #     fi
+          
+      #     if [[ ! -f "${{ env.TEMPLATE_PATH }}" ]]; then
+      #       echo "❌ ERROR: Template file not found: ${{ env.TEMPLATE_PATH }}"
+      #       exit 1
+      #     fi
+          
+      #     echo "✅ Using template file: ${{ env.TEMPLATE_PATH }}"
+      #     cp "${{ env.TEMPLATE_PATH }}" values-scaleset.yaml
+          
+      #     # Override template values with configuration parameters
+      #     yq eval -i ".controllerServiceAccount.name = \"${{ env.CONTROLLER_SERVICE_ACCOUNT }}\"" values-scaleset.yaml
+      #     yq eval -i ".controllerServiceAccount.namespace = \"${{ env.ARC_SYSTEMS_NS }}\"" values-scaleset.yaml
+      #     yq eval -i ".githubConfigUrl = \"${{ env.GITHUB_CONFIG_URL }}\"" values-scaleset.yaml
+      #     yq eval -i ".githubConfigSecret = \"${{ env.GITHUB_SECRET_NAME }}\"" values-scaleset.yaml
+      #     yq eval -i ".template.spec.containers[0].image = \"${{ env.RUNNER_IMAGE }}\"" values-scaleset.yaml
+      #     yq eval -i ".minRunners = ${{ env.MIN_RUNNERS }}" values-scaleset.yaml
+      #     yq eval -i ".maxRunners = ${{ env.MAX_RUNNERS }}" values-scaleset.yaml
+          
+      #     # Add runner labels if specified
+      #     if [[ -n "${{ env.RUNNER_LABELS }}" ]]; then
+      #       echo "Adding runner labels: ${{ env.RUNNER_LABELS }}"
+      #       yq eval -i ".template.metadata.labels = {}" values-scaleset.yaml
+      #       IFS=',' read -ra LABEL_ARRAY <<< "${{ env.RUNNER_LABELS }}"
+      #       for label in "${LABEL_ARRAY[@]}"; do
+      #         label=$(echo "$label" | xargs)
+      #         yq eval -i ".template.metadata.labels[\"$label\"] = \"true\"" values-scaleset.yaml
+      #       done
+      #     fi
+          
+      #     echo ""
+      #     echo "✅ Values file prepared successfully:"
+      #     cat values-scaleset.yaml
+
+      # Deploy Windows Runner Scale Set
+      - name: Create Windows Runner Scale Set values file
         run: |
-          if [[ -z "${{ env.TEMPLATE_PATH }}" ]]; then
-            echo "❌ ERROR: TEMPLATE_PATH environment variable is required"
-            exit 1
-          fi
-          
-          if [[ ! -f "${{ env.TEMPLATE_PATH }}" ]]; then
-            echo "❌ ERROR: Template file not found: ${{ env.TEMPLATE_PATH }}"
-            exit 1
-          fi
-          
-          echo "✅ Using template file: ${{ env.TEMPLATE_PATH }}"
-          cp "${{ env.TEMPLATE_PATH }}" values-scaleset.yaml
-          
-          # Override template values with configuration parameters
-          yq eval -i ".controllerServiceAccount.name = \"${{ env.CONTROLLER_SERVICE_ACCOUNT }}\"" values-scaleset.yaml
-          yq eval -i ".controllerServiceAccount.namespace = \"${{ env.ARC_SYSTEMS_NS }}\"" values-scaleset.yaml
-          yq eval -i ".githubConfigUrl = \"${{ env.GITHUB_CONFIG_URL }}\"" values-scaleset.yaml
-          yq eval -i ".githubConfigSecret = \"${{ env.GITHUB_SECRET_NAME }}\"" values-scaleset.yaml
-          yq eval -i ".template.spec.containers[0].image = \"${{ env.RUNNER_IMAGE }}\"" values-scaleset.yaml
-          yq eval -i ".minRunners = ${{ env.MIN_RUNNERS }}" values-scaleset.yaml
-          yq eval -i ".maxRunners = ${{ env.MAX_RUNNERS }}" values-scaleset.yaml
-          
-          # Add runner labels if specified
-          if [[ -n "${{ env.RUNNER_LABELS }}" ]]; then
-            echo "Adding runner labels: ${{ env.RUNNER_LABELS }}"
-            yq eval -i ".template.metadata.labels = {}" values-scaleset.yaml
-            IFS=',' read -ra LABEL_ARRAY <<< "${{ env.RUNNER_LABELS }}"
-            for label in "${LABEL_ARRAY[@]}"; do
-              label=$(echo "$label" | xargs)
-              yq eval -i ".template.metadata.labels[\"$label\"] = \"true\"" values-scaleset.yaml
-            done
-          fi
-          
-          echo ""
-          echo "✅ Values file prepared successfully:"
-          cat values-scaleset.yaml
+          cat > values-windows-runners.yaml <<EOF
+          controllerServiceAccount:
+            name: arc-gha-rs-controller
+            namespace: arc-systems
+
+          template:
+            spec:
+              nodeSelector:
+                kubernetes.io/os: windows
+              containers:
+                - name: runner
+                  image: ghcr.io/poc-win-runners/arc-windows-runner:v2.329.0
+                  command: ['cmd.exe', '/c', '\\home\\runner\\run.cmd']
+              tolerations:
+                - key: kubernetes.io/os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+                - key: os
+                  operator: Equal
+                  value: windows
+                  effect: NoSchedule
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: kubernetes.io/os
+                            operator: In
+                            values:
+                              - windows
+
+          githubConfigUrl: https://github.com/poc-win-runners
+          githubConfigSecret: gha-runner-secret
+          minRunners: 1
+          EOF
 
       - name: Deploy Scale Set
         if: inputs.operation == 'deploy' || inputs.operation == 'upgrade'
