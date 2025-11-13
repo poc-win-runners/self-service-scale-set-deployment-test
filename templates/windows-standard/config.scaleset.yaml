@@ -29,19 +29,6 @@ template:
                   values:
                     - windows
 
-# listenerTemplate:
-#   spec:
-#     containers:
-#     - name: listener
-#       resources:
-#         limits:
-#           cpu: "1"
-#           memory: 1Gi
-#         requests:
-#           cpu: "0.5"
-#           memory: 512Mi
-
 githubConfigUrl: https://github.com/poc-win-runners
 githubConfigSecret: gha-runner-secret
 minRunners: 1
-maxRunners: 5
