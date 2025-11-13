@@ -41,7 +41,7 @@ template:
 #           cpu: "0.5"
 #           memory: 512Mi
 
-githubConfigUrl: https://github.com/YOUR_ORG/YOUR_REPO
+githubConfigUrl: https://github.com/poc-win-runners
 githubConfigSecret: gha-runner-secret
-minRunners: 0
-maxRunners: 10
+minRunners: 1
+maxRunners: 5
